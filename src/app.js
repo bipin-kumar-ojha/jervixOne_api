@@ -31,6 +31,8 @@ app.use((req, res, next) => {
   next();
 });
 
+
+
 const allowedOrigins = [
   'http://localhost:4200',        // Angular local
   'http://localhost:3000',        // React local
@@ -56,6 +58,9 @@ app.use(
     credentials: true
   })
 );
+app.get('/', (req, res) => {
+  res.send('🚀 Jervix One API is running');
+});
 app.get("/health", (req, res) => {
   res.status(200).json({
     brand: "Jervix",
