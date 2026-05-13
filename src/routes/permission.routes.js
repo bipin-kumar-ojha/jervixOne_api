@@ -4,10 +4,6 @@ import { getAllPermissions } from '../controllers/permission.controller.js';
 
 const router = express.Router();
 
-router.get(
-  '/permissions',
-  authMiddleware,
-  getAllPermissions
-);
+router.get('/', authMiddleware, getAllPermissions);
 
 export default router;

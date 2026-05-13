@@ -3,6 +3,7 @@ import {
   createDesignation,
   getDesignations,
   deleteDesignation,
+  getDesignationMeta,
 } from "../controllers/designation.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { requirePermission } from "../middlewares/rbac.middleware.js";
@@ -29,5 +30,7 @@ router.delete(
   requirePermission("designations.delete"),
   deleteDesignation
 );
+
+router.get("/meta", getDesignationMeta);
 
 export default router;

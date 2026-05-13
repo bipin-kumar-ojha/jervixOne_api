@@ -56,10 +56,12 @@ export const createRole = asyncHandler(async (req, res) => {
    Get All Roles
 ============================ */
 export const getRoles = asyncHandler(async (req, res) => {
+  console.log("Fetching all roles");
   const roles = await Role.find()
     .select("name description permissions isSystem createdAt")
     .sort({ createdAt: -1 })
     .lean();
+    console.log(`Found ${roles.length} roles`);
 
   res.status(200).json({
     success: true,

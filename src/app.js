@@ -13,7 +13,10 @@ import { securityLogger } from "./middlewares/securityLogger.middleware.js";
 import orgRoutes from "./routes/org.routes.js";
 import employeeRoutes from "./routes/employee.routes.js";
 import designationRoutes from "./routes/designation.routes.js";
-
+import departmentRoutes from "./routes/department.routes.js";
+import teamRoutes from "./routes/team.routes.js";
+import projectRoutes from "./routes/project.routes.js";
+import projectAssignmentRoutes from "./routes/projectAssignment.routes.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -82,10 +85,15 @@ app.use(securityLogger);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/roles', roleRoutes);
+console.log("Registered role routes at /api/v1/roles");
 app.use('/api/v1/permissions', permissionRoutes);
 app.use("/api/v1/org", orgRoutes);
 app.use("/api/v1/employees",employeeRoutes);
 app.use("/api/v1/designations", designationRoutes);
+app.use("/api/v1/departments", departmentRoutes);
+app.use("/api/v1/teams", teamRoutes);
+app.use("/api/v1/projects", projectRoutes);
+app.use("/api/v1/project-assignments", projectAssignmentRoutes);
 app.use(errorMiddleware);
 
 export default app;

@@ -1,14 +1,21 @@
-import { Designation } from "../models/designation.model.js";
+import { Designation, DESIGNATION_LEVELS } from "../models/designation.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 
 /* CREATE */
 export const createDesignation = asyncHandler(async (req, res) => {
-  const { name, description } = req.body;
-
+  const { name, description, level, salaryMin, salaryMax } = req.body;
+  console.log(req.body);
   if (!req.user.organizationId) {
     throw new ApiError(400, "Organization not found");
   }
+  console.log(req.user.organizationId);
+  if (!name || !description || !level || !salaryMin || !salaryMax) {
+    throw new ApiError(400, "All fields are required");
+  }
+  console.log(name, description, level, salaryMin, salaryMax);
+  
+
 
   const existing = await Designation.findOne({
     name,
@@ -22,6 +29,9 @@ export const createDesignation = asyncHandler(async (req, res) => {
   const designation = await Designation.create({
     name,
     description,
+    level,
+    salaryMin,
+    salaryMax,
     organizationId: req.user.organizationId,
   });
 
@@ -45,3 +55,12 @@ export const deleteDesignation = asyncHandler(async (req, res) => {
 
   res.json({ success: true });
 });
+
+export const getDesignationMeta = (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      levels: DESIGNATION_LEVELS
+    }
+  });
+};

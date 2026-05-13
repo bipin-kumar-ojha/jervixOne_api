@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import { ApiError } from "../utils/ApiError.js";
 
 export const authMiddleware = async (req, res, next) => {
+  console.log("Authenticating request...");
   try {
     const authHeader = req.headers.authorization;
 

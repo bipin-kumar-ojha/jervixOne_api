@@ -7,6 +7,7 @@ import crypto from "crypto";
 import { logAudit } from "../services/audit.service.js";
 
 export const login = asyncHandler(async (req, res) => {
+  console.log("Login attempt with data:", req.body);
   const { email, password } = req.body;
   const normalizedEmail = email?.toLowerCase().trim();
 
