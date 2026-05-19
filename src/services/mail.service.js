@@ -4,14 +4,40 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const sendgridApiKey = process.env.SENDGRID_API_KEY;
 
-export const sendEmail = async ({ to, subject, html }) => {
+if (sendgridApiKey) {
+  sgMail.setApiKey(sendgridApiKey);
+}
+
+const getSender = (fromName) => {
+  const from = process.env.MAIL_FROM;
+
+  if (!fromName) return from;
+
+  const emailMatch = from?.match(/<([^>]+)>/);
+  const email = emailMatch?.[1] || from;
+
+  return {
+    email,
+    name: fromName,
+  };
+};
+
+export const sendEmail = async ({ to, subject, html, fromName, replyTo }) => {
   try {
+    if (!sendgridApiKey) {
+      throw new Error("SENDGRID_API_KEY is not configured");
+    }
+
+    if (!process.env.MAIL_FROM) {
+      throw new Error("MAIL_FROM is not configured");
+    }
+
     const msg = {
       to,
-      from: process.env.MAIL_FROM,
-      replyTo: "support@jervix.com",
+      from: getSender(fromName),
+      replyTo: replyTo || "support@jervix.com",
       subject,
       html,
     };

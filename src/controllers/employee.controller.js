@@ -1,6 +1,7 @@
 import { Employee } from "../models/employee.model.js";
 import { User } from "../models/user.model.js";
 import { Role } from "../models/role.model.js";
+import Organization from "../models/organization.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { uploadToCloudinary } from "../utils/cloudinary.util.js";
@@ -13,6 +14,36 @@ const generateTemporaryPassword = () => {
   return crypto.randomBytes(12).toString("base64url");
 };
 
+const getRoleId = (role) => {
+  if (!role) return null;
+
+  if (Array.isArray(role)) {
+    return getRoleId(role[0]);
+  }
+
+  if (typeof role === "object") {
+    return role._id || role.id || role.value || null;
+  }
+
+  const trimmedRole = String(role).trim();
+
+  if (!trimmedRole) return null;
+
+  try {
+    const parsedRole = JSON.parse(trimmedRole);
+    return getRoleId(parsedRole);
+  } catch {
+    return trimmedRole;
+  }
+};
+
+const normalizeOptionalObjectId = (value) => {
+  if (value === undefined || value === null) return null;
+
+  const normalizedValue = String(value).trim();
+  return normalizedValue || null;
+};
+
 const escapeHtml = (value = "") => {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -22,17 +53,53 @@ const escapeHtml = (value = "") => {
     .replace(/'/g, "&#039;");
 };
 
-const employeeWelcomeTemplate = ({ name, username, password }) => `
-  <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
-    <h2 style="color: #111827;">Welcome to Jervix One, ${escapeHtml(name)}!</h2>
-    <p>Your employee profile has been created and your account is ready.</p>
-    <p>You can log in with the credentials below:</p>
-    <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin: 16px 0;">
-      <p style="margin: 0 0 8px;"><strong>Username:</strong> ${escapeHtml(username)}</p>
-      <p style="margin: 0;"><strong>Password:</strong> ${escapeHtml(password)}</p>
+const getLoginUrl = () => {
+  return process.env.APP_LOGIN_URL
+    || process.env.FRONTEND_LOGIN_URL
+    || process.env.FRONTEND_URL
+    || "https://one.jervix.com/login";
+};
+
+const employeeWelcomeTemplate = ({ name, organizationName, username, password, loginUrl }) => `
+  <div style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#1f2937;">
+    <div style="max-width:640px;margin:0 auto;padding:32px 16px;">
+      <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+        <div style="background:#111827;color:#ffffff;padding:24px 28px;">
+          <p style="margin:0 0 6px;font-size:13px;letter-spacing:0.04em;text-transform:uppercase;color:#d1d5db;">${escapeHtml(organizationName)}</p>
+          <h1 style="margin:0;font-size:24px;line-height:1.3;font-weight:700;">Your employee account is ready</h1>
+        </div>
+
+        <div style="padding:28px;">
+          <p style="margin:0 0 16px;font-size:16px;">Hello ${escapeHtml(name)},</p>
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">
+            Your account has been created by ${escapeHtml(organizationName)}. Use the credentials below to sign in and access your employee workspace.
+          </p>
+
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin:22px 0;">
+            <p style="margin:0 0 10px;font-size:14px;"><strong>Email:</strong> ${escapeHtml(username)}</p>
+            <p style="margin:0;font-size:14px;"><strong>Temporary password:</strong> ${escapeHtml(password)}</p>
+          </div>
+
+          <p style="margin:0 0 22px;font-size:14px;line-height:1.7;color:#4b5563;">
+            For your security, please sign in and change your password after your first login.
+          </p>
+
+          <a href="${escapeHtml(loginUrl)}"
+             style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:700;">
+            Login to your account
+          </a>
+
+          <p style="margin:28px 0 0;font-size:15px;line-height:1.7;">
+            Regards,<br/>
+            ${escapeHtml(organizationName)}
+          </p>
+        </div>
+
+        <div style="border-top:1px solid #e5e7eb;padding:16px 28px;background:#f9fafb;">
+          <p style="margin:0;font-size:12px;color:#6b7280;">Powered by Jervix</p>
+        </div>
+      </div>
     </div>
-    <p>Please keep these credentials secure.</p>
-    <p style="margin-top: 24px;">Regards,<br/>Jervix One Team</p>
   </div>
 `;
 
@@ -87,7 +154,6 @@ export const createEmployee = asyncHandler(async (req, res) => {
     professionalTax,
     nomineeDetails,
     role,
-    userRole
   } = req.body;
 
   console.log("Received employee data:", req.body);
@@ -99,35 +165,64 @@ export const createEmployee = asyncHandler(async (req, res) => {
 
   const normalizedOfficialEmail = officialEmail.toLowerCase().trim();
   const normalizedPersonalEmail = personalEmail.toLowerCase().trim();
-  const requestedRole = userRole || role;
+  const requestedRole = getRoleId(role);
+  const departmentId = normalizeOptionalObjectId(department);
+  const designationId = normalizeOptionalObjectId(designation);
+  const managerId = normalizeOptionalObjectId(manager);
+
+  if (!requestedRole) {
+    throw new ApiError(400, "Role is required");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(requestedRole)) {
+    throw new ApiError(400, "Invalid role");
+  }
+
+  const organization = await Organization.findById(req.user.organizationId).select("name");
+  if (!organization) {
+    throw new ApiError(404, "Organization not found");
+  }
+
+  if (departmentId && !mongoose.Types.ObjectId.isValid(departmentId)) {
+    throw new ApiError(400, "Invalid department");
+  }
+
+  if (designationId && !mongoose.Types.ObjectId.isValid(designationId)) {
+    throw new ApiError(400, "Invalid designation");
+  }
 
   const existingUser = await User.findOne({ email: normalizedOfficialEmail });
   if (existingUser) {
     throw new ApiError(409, "A user with this official email already exists");
   }
 
-  let userRoleDoc = null;
-  if (requestedRole) {
-    if (!mongoose.Types.ObjectId.isValid(requestedRole)) {
-      throw new ApiError(400, "Invalid user role selected");
-    }
+  const existingEmployee = await Employee.findOne({
+    officialEmail: normalizedOfficialEmail,
+    organizationId: req.user.organizationId,
+  });
 
-    userRoleDoc = await Role.findById(requestedRole);
-    if (!userRoleDoc) {
-      throw new ApiError(400, "Invalid user role selected");
-    }
-  } else {
-    userRoleDoc = await Role.findOne({ name: { $regex: /^viewer$/i } });
-    if (!userRoleDoc) {
-      throw new ApiError(500, "Default employee user role not configured");
-    }
+  if (existingEmployee) {
+    throw new ApiError(409, "An employee with this official email already exists");
+  }
+
+  const roleDoc = await Role.findOne({
+    _id: requestedRole,
+    organizationId: req.user.organizationId,
+  });
+
+  if (!roleDoc) {
+    throw new ApiError(404, "Role not found");
   }
 
   // Validate manager if provided
   let managerExists = null;
-  if (manager) {
+  if (managerId) {
+    if (!mongoose.Types.ObjectId.isValid(managerId)) {
+      throw new ApiError(400, "Invalid manager");
+    }
+
     managerExists = await Employee.findOne({
-      _id: manager,
+      _id: managerId,
       organizationId: req.user.organizationId,
     });
     if (!managerExists) {
@@ -168,9 +263,10 @@ export const createEmployee = asyncHandler(async (req, res) => {
     drivingLicense,
     uan,
     employeeId,
-    department,
-    designation,
-    manager,
+    department: departmentId,
+    designation: designationId,
+    manager: managerId,
+    role: roleDoc._id,
     dateOfJoining,
     employmentType,
     probationPeriod,
@@ -213,12 +309,14 @@ export const createEmployee = asyncHandler(async (req, res) => {
     throw error;
   });
 
+  const populatedEmployee = await employee.populate("role", "_id name");
+
   try {
     createdUser = await User.create({
       name: name.trim(),
       email: normalizedOfficialEmail,
       password: temporaryPassword,
-      role: userRoleDoc._id,
+      role: roleDoc._id,
       organizationId: req.user.organizationId,
     });
   } catch (error) {
@@ -233,30 +331,46 @@ export const createEmployee = asyncHandler(async (req, res) => {
     throw error;
   }
 
-  sendEmail({
-    to: normalizedPersonalEmail,
-    subject: "Welcome to Jervix One - Your Account Details",
-    html: employeeWelcomeTemplate({
-      name,
-      username: normalizedOfficialEmail,
-      password: temporaryPassword,
-    }),
-  }).catch((err) => {
-    console.error("Employee welcome email failed:", err.message);
-  });
+  let emailStatus = {
+    sent: false,
+    to: normalizedOfficialEmail,
+  };
+
+  try {
+    await sendEmail({
+      to: normalizedOfficialEmail,
+      fromName: organization.name,
+      subject: `${organization.name} - Your employee account details`,
+      html: employeeWelcomeTemplate({
+        name,
+        organizationName: organization.name,
+        username: normalizedOfficialEmail,
+        password: temporaryPassword,
+        loginUrl: getLoginUrl(),
+      }),
+    });
+
+    emailStatus.sent = true;
+  } catch (err) {
+    console.error("Employee welcome email failed:", err.response?.body || err.message);
+    emailStatus.error = err.response?.body?.errors?.[0]?.message || err.message;
+  }
 
   res.status(201).json({
     success: true,
-    message: "Employee and user created",
+    message: emailStatus.sent
+      ? "Employee and user created. Welcome email sent."
+      : "Employee and user created. Welcome email failed.",
     data: {
-      employee,
-      user: {
+      employee: populatedEmployee,
+      account: {
         id: createdUser._id,
         name: createdUser.name,
         email: createdUser.email,
-        role: userRoleDoc.name,
+        role: roleDoc.name,
+        credentialsSentTo: emailStatus.sent ? normalizedOfficialEmail : null,
+        emailStatus,
       },
-      credentialsSentTo: normalizedPersonalEmail,
     },
   });
 });
@@ -321,6 +435,33 @@ export const updateEmployee = asyncHandler(async (req, res) => {
     nomineeDetails
   } = req.body;
 
+  const departmentId = normalizeOptionalObjectId(department);
+  const designationId = normalizeOptionalObjectId(designation);
+  const managerId = normalizeOptionalObjectId(manager);
+
+  if (departmentId && !mongoose.Types.ObjectId.isValid(departmentId)) {
+    throw new ApiError(400, "Invalid department");
+  }
+
+  if (designationId && !mongoose.Types.ObjectId.isValid(designationId)) {
+    throw new ApiError(400, "Invalid designation");
+  }
+
+  if (managerId && !mongoose.Types.ObjectId.isValid(managerId)) {
+    throw new ApiError(400, "Invalid manager");
+  }
+
+  if (managerId) {
+    const managerExists = await Employee.exists({
+      _id: managerId,
+      organizationId: req.user.organizationId,
+    });
+
+    if (!managerExists) {
+      throw new ApiError(400, "Manager not found");
+    }
+  }
+
   // Handle image update
   if (req.file) {
     try {
@@ -355,9 +496,9 @@ export const updateEmployee = asyncHandler(async (req, res) => {
   if (drivingLicense) employee.drivingLicense = drivingLicense;
   if (uan) employee.uan = uan;
   if (employeeId) employee.employeeId = employeeId;
-  if (department) employee.department = department;
-  if (designation) employee.designation = designation;
-  if (manager) employee.manager = manager;
+  if (department !== undefined) employee.department = departmentId;
+  if (designation !== undefined) employee.designation = designationId;
+  if (manager !== undefined) employee.manager = managerId;
   if (dateOfJoining) employee.dateOfJoining = dateOfJoining;
   if (employmentType) employee.employmentType = employmentType;
   if (probationPeriod) employee.probationPeriod = probationPeriod;
@@ -397,16 +538,27 @@ export const updateEmployee = asyncHandler(async (req, res) => {
 // GET ALL
 export const getEmployees = asyncHandler(async (req, res) => {
   console.log("Fetching employees for organization:", req.user.organizationId);
-  const employees = await Employee.find({
+  const employeeRows = await Employee.find({
       organizationId: req.user.organizationId,
     })
     .populate("department", "name")
     .populate("designation", "name")
+    .populate("role", "_id name")
     .sort({ createdAt: -1 });
+
+  const employeesByEmail = new Map();
+
+  for (const employee of employeeRows) {
+    const emailKey = employee.officialEmail?.toLowerCase();
+
+    if (!emailKey || !employeesByEmail.has(emailKey)) {
+      employeesByEmail.set(emailKey || employee._id.toString(), employee);
+    }
+  }
 
   res.status(200).json({
     success: true,
-    data: employees,
+    data: [...employeesByEmail.values()],
   });
 });
 
@@ -420,6 +572,7 @@ export const getEmployeeById = asyncHandler(async (req, res) => {
   })
     .populate("department", "name")
     .populate("designation", "name")
+    .populate("role", "_id name")
     .populate("manager", "name");
 
   if (!employee) {

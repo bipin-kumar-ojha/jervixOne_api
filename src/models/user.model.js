@@ -34,6 +34,7 @@ const userSchema = new mongoose.Schema(
     organizationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Organization",
+      index: true,
     },
 
     isActive: {

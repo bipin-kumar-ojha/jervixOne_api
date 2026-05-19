@@ -4,13 +4,14 @@ import { requirePermission } from "../middlewares/rbac.middleware.js";
 import { body, param } from "express-validator";
 import { validateRequest } from "../middlewares/validateRequest.js";
 import * as projectAssignmentController from "../controllers/projectAssignment.controller.js";
+import { PERMISSIONS } from "../constants/permissions.js";
 
 const router = express.Router();
 
 router.post(
 	"/:projectId",
 	authMiddleware,
-	requirePermission("projects.assign"),
+	requirePermission(PERMISSIONS.PROJECTS_ASSIGN),
 	[
 		param("projectId").isMongoId().withMessage("Invalid project ID"),
 		body("assignType").isIn(["employees", "department"]),

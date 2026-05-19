@@ -6,6 +6,12 @@ const auditSchema = new mongoose.Schema({
     ref: "User",
     default: null,
   },
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Organization",
+    default: null,
+    index: true,
+  },
   action: {
     type: String,
     required: true,

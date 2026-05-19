@@ -10,13 +10,14 @@ import {
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { requirePermission } from "../middlewares/rbac.middleware.js";
 import upload from "../middlewares/upload.middleware.js";
+import { PERMISSIONS } from "../constants/permissions.js";
 
 const router = express.Router();
 
 router.post(
   "/",
   authMiddleware,
-  requirePermission("employee.create"),
+  requirePermission(PERMISSIONS.EMPLOYEE_CREATE),
   upload.single("profileImage"),
   createEmployee
 );
@@ -24,6 +25,7 @@ router.post(
 router.put(
   "/:id",
   authMiddleware,
+  requirePermission(PERMISSIONS.EMPLOYEE_UPDATE),
   upload.single("profileImage"),
   updateEmployee
 );
@@ -31,21 +33,21 @@ router.put(
 router.get(
   "/",
   authMiddleware,
-  requirePermission("employee.view"),
+  requirePermission(PERMISSIONS.EMPLOYEE_VIEW),
   getEmployees
 );
 
 router.get(
   "/:id",
   authMiddleware,
-  requirePermission("employee.view"),
+  requirePermission(PERMISSIONS.EMPLOYEE_VIEW),
   getEmployeeById
 );
 
 router.delete(
   "/:id",
   authMiddleware,
-  requirePermission("employee.delete"),
+  requirePermission(PERMISSIONS.EMPLOYEE_DELETE),
   deleteEmployee
 );
 

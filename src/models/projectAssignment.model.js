@@ -22,13 +22,19 @@ const projectAssignmentSchema = new mongoose.Schema({
 		type: mongoose.Schema.Types.ObjectId,
 		ref: "User",
 	},
+	organizationId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: "Organization",
+		required: true,
+		index: true,
+	},
 
 }, {
 	timestamps: true,
 });
 
 // Prevent duplicate assignment (same employee in same project)
-projectAssignmentSchema.index({ projectId: 1, employeeId: 1 }, { unique: true });
+projectAssignmentSchema.index({ projectId: 1, employeeId: 1, organizationId: 1 }, { unique: true });
 
 const ProjectAssignment = mongoose.model("ProjectAssignment", projectAssignmentSchema);
 export default ProjectAssignment;

@@ -28,7 +28,7 @@ export const authMiddleware = async (req, res, next) => {
       _id: decoded.sub,
       isDeleted: false,
       isActive: true,
-    }).populate("role", "name permissions");
+    }).populate("role", "name permissions isSystem organizationId");
 
     if (!user) {
       throw new ApiError(401, "Unauthorized");

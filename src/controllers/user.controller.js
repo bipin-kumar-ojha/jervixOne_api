@@ -3,17 +3,64 @@ import { Role } from "../models/role.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 
+const normalizeRoleName = (roleName = "") => String(roleName).trim().toLowerCase();
+
+const isSuperAdminRole = (role) => {
+  return Boolean(role?.isSystem || normalizeRoleName(role?.name) === "super admin");
+};
+
+const isSuperAdminUser = (user) => isSuperAdminRole(user?.role);
+
+const getSuperAdminRoleIds = async (organizationId) => {
+  return Role.find({
+    organizationId,
+    $or: [
+      { name: /^super admin$/i },
+      { isSystem: true },
+    ],
+  }).distinct("_id");
+};
+
+const ensureCanAccessUser = (currentUser, targetUser) => {
+  if (isSuperAdminRole(targetUser?.role) && !isSuperAdminUser(currentUser)) {
+    throw new ApiError(404, "User not found");
+  }
+};
+
+const sanitizeUser = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  isActive: user.isActive,
+  role: user.role
+    ? {
+        id: user.role._id,
+        name: user.role.name,
+      }
+    : null,
+  createdAt: user.createdAt,
+});
+
 export const createUser = asyncHandler(async (req, res) => {
 
   const { name, email, password, role } = req.body;
+  const organizationId = req.user.organizationId;
 
   if (!name || !email || !password || !role) {
     throw new ApiError(400, 'All fields required');
   }
 
-  const roleExists = await Role.findById(role);
+  if (!organizationId) {
+    throw new ApiError(400, "No organization linked to your account");
+  }
+
+  const roleExists = await Role.findOne({ _id: role, organizationId });
   if (!roleExists) {
     throw new ApiError(400, 'Invalid role selected');
+  }
+
+  if (isSuperAdminRole(roleExists) && !isSuperAdminUser(req.user)) {
+    throw new ApiError(403, "Only Super Admin can create Super Admin users");
   }
 
   const existingUser = await User.findOne({
@@ -29,7 +76,8 @@ export const createUser = asyncHandler(async (req, res) => {
     name,
     email,
     password,
-    role
+    role,
+    organizationId,
   });
 
   res.status(201).json({
@@ -45,25 +93,27 @@ export const createUser = asyncHandler(async (req, res) => {
 });
 
 export const getUsers = asyncHandler(async (req, res) => {
-  const users = await User.find({ isDeleted: false })
+  if (!req.user.organizationId) {
+    throw new ApiError(400, "No organization linked to your account");
+  }
+
+  const filter = {
+    organizationId: req.user.organizationId,
+    isDeleted: false,
+  };
+
+  if (!isSuperAdminUser(req.user)) {
+    const superAdminRoleIds = await getSuperAdminRoleIds(req.user.organizationId);
+    filter.role = { $nin: superAdminRoleIds };
+  }
+
+  const users = await User.find(filter)
     .select("name email isActive role createdAt")
     .populate("role", "name")
     .sort({ createdAt: -1 })
     .lean();
 
-  const sanitizedUsers = users.map((user) => ({
-    id: user._id,
-    name: user.name,
-    email: user.email,
-    isActive: user.isActive,
-    role: user.role
-      ? {
-          id: user.role._id,
-          name: user.role.name,
-        }
-      : null,
-    createdAt: user.createdAt,
-  }));
+  const sanitizedUsers = users.map(sanitizeUser);
 
   res.status(200).json({
     success: true,
@@ -79,15 +129,20 @@ export const deleteUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "You cannot delete your own account");
   }
 
-  const user = await User.findOneAndUpdate(
-    { _id: id, isDeleted: false },
-    { isDeleted: true, tokenVersion: { $inc: 1 } },
-    { new: true }
-  );
-
+  const user = await User.findOne({
+    _id: id,
+    organizationId: req.user.organizationId,
+    isDeleted: false,
+  }).populate("role", "name isSystem");
   if (!user) {
     throw new ApiError(404, "User not found");
   }
+
+  ensureCanAccessUser(req.user, user);
+
+  user.isDeleted = true;
+  user.tokenVersion += 1;
+  await user.save();
 
   res.status(200).json({
     success: true,
@@ -100,13 +155,17 @@ export const updateUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, email, role, isActive } = req.body;
 
-  const existingUser = await User.findById(id).populate("role");
+  const existingUser = await User.findOne({
+    _id: id,
+    organizationId: req.user.organizationId,
+  }).populate("role");
 
   if (!existingUser || existingUser.isDeleted) {
     throw new ApiError(404, "User not found");
   }
 
   const currentUser = req.user;
+  ensureCanAccessUser(currentUser, existingUser);
 
   /* ===============================
      🚫 Prevent Self Role Modification
@@ -150,17 +209,20 @@ export const updateUser = asyncHandler(async (req, res) => {
      🚫 Role Escalation Protection
   =============================== */
   if (role) {
-    const newRole = await Role.findById(role);
+    const newRole = await Role.findOne({
+      _id: role,
+      organizationId: req.user.organizationId,
+    });
 
     if (!newRole) {
       throw new ApiError(400, "Invalid role selected");
     }
 
     // 🚫 Only system users can assign system roles
-    if (newRole.isSystem && !currentUser.role.isSystem) {
+    if (isSuperAdminRole(newRole) && !isSuperAdminUser(currentUser)) {
       throw new ApiError(
         403,
-        "You cannot assign a system role"
+        "Only Super Admin can assign a Super Admin role"
       );
     }
 
@@ -204,7 +266,7 @@ export const updateUser = asyncHandler(async (req, res) => {
   }
 
   const updatedUser = await User.findOneAndUpdate(
-    { _id: id, isDeleted: false },
+    { _id: id, organizationId: req.user.organizationId, isDeleted: false },
     updateData,
     { new: true }
   )
@@ -232,32 +294,23 @@ export const getUserById = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({
     _id: id,
+    organizationId: req.user.organizationId,
     isDeleted: false,
   })
     .select("name email isActive role createdAt")
-    .populate("role", "name")
+    .populate("role", "name isSystem")
     .lean();
 
   if (!user) {
     throw new ApiError(404, "User not found");
   }
 
+  ensureCanAccessUser(req.user, user);
+
   res.status(200).json({
     success: true,
     message: "User retrieved successfully",
-    data: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      isActive: user.isActive,
-      role: user.role
-        ? {
-            id: user.role._id,
-            name: user.role.name,
-          }
-        : null,
-      createdAt: user.createdAt,
-    },
+    data: sanitizeUser(user),
   });
 });
 
@@ -274,12 +327,17 @@ export const changePassword = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({
     _id: id,
+    organizationId: req.user.organizationId,
     isDeleted: false,
-  }).select("+password");
+  })
+    .select("+password")
+    .populate("role", "name isSystem");
 
   if (!user) {
     throw new ApiError(404, "User not found");
   }
+
+  ensureCanAccessUser(req.user, user);
 
   user.password = password;
   user.tokenVersion += 1;

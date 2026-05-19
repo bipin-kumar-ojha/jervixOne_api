@@ -9,41 +9,42 @@ import {
 
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { requirePermission } from "../middlewares/rbac.middleware.js";
+import { PERMISSIONS } from "../constants/permissions.js";
 
 const router = express.Router();
 
 router.post(
 	"/",
 	authMiddleware,
-	requirePermission("teams.create"),
+	requirePermission(PERMISSIONS.TEAMS_CREATE),
 	createTeam
 );
 
 router.put(
 	"/:id",
 	authMiddleware,
-	requirePermission("teams.update"),
+	requirePermission(PERMISSIONS.TEAMS_UPDATE),
 	updateTeam
 );
 
 router.get(
 	"/",
 	authMiddleware,
-	requirePermission("teams.view"),
+	requirePermission(PERMISSIONS.TEAMS_VIEW),
 	getTeams
 );
 
 router.get(
 	"/:id",
 	authMiddleware,
-	requirePermission("teams.view"),
+	requirePermission(PERMISSIONS.TEAMS_VIEW),
 	getTeamById
 );
 
 router.delete(
 	"/:id",
 	authMiddleware,
-	requirePermission("teams.delete"),
+	requirePermission(PERMISSIONS.TEAMS_DELETE),
 	deleteTeam
 );
 

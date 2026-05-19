@@ -8,12 +8,17 @@ import { ApiError } from "../utils/ApiError.js";
 ============================ */
 export const createRole = asyncHandler(async (req, res) => {
   const { name, description, permissions } = req.body;
+  const organizationId = req.user.organizationId;
 
   if (!name) {
     throw new ApiError(400, "Role name is required");
   }
 
-  const existingRole = await Role.findOne({ name });
+  if (!organizationId) {
+    throw new ApiError(400, "No organization linked to your account");
+  }
+
+  const existingRole = await Role.findOne({ name, organizationId });
   if (existingRole) {
     throw new ApiError(409, "Role already exists");
   }
@@ -37,6 +42,7 @@ export const createRole = asyncHandler(async (req, res) => {
     name,
     description,
     permissions: permissions || [],
+    organizationId,
   });
 
   res.status(201).json({
@@ -56,12 +62,16 @@ export const createRole = asyncHandler(async (req, res) => {
    Get All Roles
 ============================ */
 export const getRoles = asyncHandler(async (req, res) => {
-  console.log("Fetching all roles");
-  const roles = await Role.find()
+  const organizationId = req.user.organizationId;
+
+  if (!organizationId) {
+    throw new ApiError(400, "No organization linked to your account");
+  }
+
+  const roles = await Role.find({ organizationId })
     .select("name description permissions isSystem createdAt")
     .sort({ createdAt: -1 })
     .lean();
-    console.log(`Found ${roles.length} roles`);
 
   res.status(200).json({
     success: true,
@@ -80,7 +90,13 @@ export const getRoles = asyncHandler(async (req, res) => {
    Get Role By ID
 ============================ */
 export const getRoleById = asyncHandler(async (req, res) => {
-  const role = await Role.findById(req.params.id)
+  const organizationId = req.user.organizationId;
+
+  if (!organizationId) {
+    throw new ApiError(400, "No organization linked to your account");
+  }
+
+  const role = await Role.findOne({ _id: req.params.id, organizationId })
     .select("name description permissions isSystem createdAt")
     .lean();
 
@@ -100,8 +116,13 @@ export const getRoleById = asyncHandler(async (req, res) => {
 export const updateRole = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, description, permissions } = req.body;
+  const organizationId = req.user.organizationId;
 
-  const role = await Role.findById(id);
+  if (!organizationId) {
+    throw new ApiError(400, "No organization linked to your account");
+  }
+
+  const role = await Role.findOne({ _id: id, organizationId });
 
   if (!role) {
     throw new ApiError(404, "Role not found");
@@ -135,7 +156,19 @@ export const updateRole = asyncHandler(async (req, res) => {
   /* ===============================
      Apply Updates After Validation
   =============================== */
-  if (name) role.name = name;
+  if (name && name !== role.name) {
+    const duplicateRole = await Role.exists({
+      _id: { $ne: role._id },
+      name,
+      organizationId,
+    });
+
+    if (duplicateRole) {
+      throw new ApiError(409, "Role already exists");
+    }
+
+    role.name = name;
+  }
   if (description !== undefined) role.description = description;
   if (permissions !== undefined) role.permissions = permissions;
 
@@ -159,8 +192,13 @@ export const updateRole = asyncHandler(async (req, res) => {
 ============================ */
 export const deleteRole = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const organizationId = req.user.organizationId;
 
-  const role = await Role.findById(id);
+  if (!organizationId) {
+    throw new ApiError(400, "No organization linked to your account");
+  }
+
+  const role = await Role.findOne({ _id: id, organizationId });
 
   if (!role) {
     throw new ApiError(404, "Role not found");
@@ -174,6 +212,7 @@ export const deleteRole = asyncHandler(async (req, res) => {
   // 🚫 Prevent deleting role assigned to users
   const usersWithRole = await User.exists({
     role: role._id,
+    organizationId,
     isDeleted: false,
   });
 

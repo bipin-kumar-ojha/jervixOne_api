@@ -25,6 +25,12 @@ const organizationSchema = new mongoose.Schema({
     default: "free",
   },
 
+  subscriptionKey: {
+    type: String,
+    default: "Free Trial",
+    trim: true,
+  },
+
   subscriptionStatus: {
     type: String,
     enum: ["active", "inactive", "expired"],

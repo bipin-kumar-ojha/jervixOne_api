@@ -2,6 +2,12 @@ import mongoose from "mongoose";
 
 const activationCodeSchema = new mongoose.Schema({
   code: { type: String, unique: true },
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Organization",
+    default: null,
+    index: true,
+  },
 
   plan: {
     type: String,

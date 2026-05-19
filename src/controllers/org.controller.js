@@ -1,7 +1,7 @@
-import mongoose from "mongoose";
 import Organization from "../models/organization.model.js";
 import { User } from "../models/user.model.js";
 import { Role } from "../models/role.model.js"; // adjust path to your Role model
+import { PERMISSIONS } from "../constants/permissions.js";
 import { generateOrgCode, generateActivationCode } from "../utils/generateOrgCode.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -9,6 +9,147 @@ import { logAudit } from "../services/audit.service.js";
 import { welcomeTemplate } from "../utils/welcome.template.js";
 import { sendEmail } from "../services/mail.service.js";
 import { newOrgNotificationTemplate } from "../utils/newOrgNotification.template.js";
+
+const defaultRoles = [
+  {
+    name: "Super Admin",
+    description: "Full access to all modules",
+    permissions: [],
+    isSystem: true,
+  },
+  {
+    name: "Admin",
+    description: "Manage organization users, roles, employees, and settings",
+    permissions: [
+      PERMISSIONS.DASHBOARD_VIEW,
+      PERMISSIONS.USERS_VIEW,
+      PERMISSIONS.USERS_CREATE,
+      PERMISSIONS.USERS_UPDATE,
+      PERMISSIONS.ROLES_VIEW,
+      PERMISSIONS.ROLES_CREATE,
+      PERMISSIONS.ROLES_UPDATE,
+      PERMISSIONS.SETTINGS_VIEW,
+      PERMISSIONS.EMPLOYEE_VIEW,
+      PERMISSIONS.EMPLOYEE_CREATE,
+      PERMISSIONS.EMPLOYEE_UPDATE,
+      PERMISSIONS.ORG_HIERARCHY_VIEW,
+      PERMISSIONS.DEPARTMENTS_VIEW,
+      PERMISSIONS.DEPARTMENTS_CREATE,
+      PERMISSIONS.DESIGNATION_VIEW,
+      PERMISSIONS.DESIGNATION_CREATE,
+      PERMISSIONS.INVITATIONS_VIEW,
+      PERMISSIONS.PROJECTS_VIEW,
+      PERMISSIONS.PROJECTS_CREATE,
+      PERMISSIONS.PROJECTS_ASSIGN,
+      PERMISSIONS.TASK_MANAGEMENT_VIEW,
+      PERMISSIONS.TASK_ASSIGNMENTS_VIEW,
+      PERMISSIONS.TEAMS_VIEW,
+      PERMISSIONS.TEAMS_CREATE,
+      PERMISSIONS.AUDIT_VIEW,
+      PERMISSIONS.ACTIVITY_LOGS_VIEW,
+    ],
+  },
+  {
+    name: "Manager",
+    description: "Manage teams, projects, and employee visibility",
+    permissions: [
+      PERMISSIONS.DASHBOARD_VIEW,
+      PERMISSIONS.EMPLOYEE_VIEW,
+      PERMISSIONS.DEPARTMENTS_VIEW,
+      PERMISSIONS.DESIGNATION_VIEW,
+      PERMISSIONS.PROJECTS_VIEW,
+      PERMISSIONS.PROJECTS_CREATE,
+      PERMISSIONS.PROJECTS_UPDATE,
+      PERMISSIONS.PROJECTS_ASSIGN,
+      PERMISSIONS.TASK_MANAGEMENT_VIEW,
+      PERMISSIONS.TASK_ASSIGNMENTS_VIEW,
+      PERMISSIONS.TEAMS_VIEW,
+      PERMISSIONS.TEAMS_CREATE,
+      PERMISSIONS.TEAMS_UPDATE,
+    ],
+  },
+  {
+    name: "Employee",
+    description: "Basic employee access",
+    permissions: [
+      PERMISSIONS.DASHBOARD_VIEW,
+      PERMISSIONS.EMPLOYEE_VIEW,
+      PERMISSIONS.PROJECTS_VIEW,
+      PERMISSIONS.TASK_MANAGEMENT_VIEW,
+      PERMISSIONS.TASK_ASSIGNMENTS_VIEW,
+      PERMISSIONS.TEAMS_VIEW,
+    ],
+  },
+  {
+    name: "HR",
+    description: "Manage employee, department, and designation records",
+    permissions: [
+      PERMISSIONS.DASHBOARD_VIEW,
+      PERMISSIONS.USERS_VIEW,
+      PERMISSIONS.EMPLOYEE_VIEW,
+      PERMISSIONS.EMPLOYEE_CREATE,
+      PERMISSIONS.EMPLOYEE_UPDATE,
+      PERMISSIONS.EMPLOYEE_DELETE,
+      PERMISSIONS.ORG_HIERARCHY_VIEW,
+      PERMISSIONS.DEPARTMENTS_VIEW,
+      PERMISSIONS.DEPARTMENTS_CREATE,
+      PERMISSIONS.DEPARTMENTS_UPDATE,
+      PERMISSIONS.DEPARTMENTS_DELETE,
+      PERMISSIONS.DESIGNATION_VIEW,
+      PERMISSIONS.DESIGNATION_CREATE,
+      PERMISSIONS.DESIGNATION_UPDATE,
+      PERMISSIONS.DESIGNATION_DELETE,
+      PERMISSIONS.INVITATIONS_VIEW,
+      PERMISSIONS.TEAMS_VIEW,
+    ],
+  },
+];
+
+const ensureRoleIndexes = async () => {
+  const indexes = await Role.collection.indexes();
+  const staleNameIndex = indexes.find((index) => {
+    return index.name === "name_1"
+      && index.unique
+      && Object.keys(index.key).length === 1
+      && index.key.name === 1;
+  });
+
+  if (staleNameIndex) {
+    await Role.collection.dropIndex(staleNameIndex.name);
+  }
+
+  await Role.collection.createIndex(
+    { name: 1, organizationId: 1 },
+    { unique: true }
+  );
+};
+
+const createDefaultRolesForOrganization = async (organizationId) => {
+  await ensureRoleIndexes();
+
+  const roles = [];
+
+  for (const role of defaultRoles) {
+    const savedRole = await Role.findOneAndUpdate(
+      { name: role.name, organizationId },
+      {
+        $setOnInsert: {
+          ...role,
+          organizationId,
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      }
+    );
+
+    roles.push(savedRole);
+  }
+
+  return roles;
+};
 
 // ─────────────────────────────────────────
 // POST /api/v1/org/register
@@ -24,7 +165,10 @@ export const registerOrganization = asyncHandler(async (req, res) => {
     throw new ApiError(409, "An account with this email already exists");
   }
 
-  const adminRole = await Role.findOne({ name: { $regex: /^admin$/i } });
+  const adminRole = await Role.findOne({
+    name: { $regex: /^admin$/i },
+    organizationId: null,
+  });
   if (!adminRole) {
     throw new ApiError(500, "Admin role not configured. Contact support.");
   }
@@ -35,6 +179,7 @@ export const registerOrganization = asyncHandler(async (req, res) => {
     orgCode: generateOrgCode(),
     activationCode: generateActivationCode(),
     subscriptionStatus: "inactive",
+    subscriptionKey: "Free Trial",
     plan: "free",
   });
 
@@ -86,6 +231,7 @@ export const registerOrganization = asyncHandler(async (req, res) => {
 
   await logAudit({
     userId: adminUser._id,
+    organizationId: org._id,
     action: "ORG_REGISTERED",
     resource: "Organization",
     metadata: { orgId: org._id, orgName: org.name },
@@ -130,9 +276,27 @@ export const activateOrganization = asyncHandler(async (req, res) => {
   }
 
   if (org.subscriptionStatus === "active") {
+    const roles = await createDefaultRolesForOrganization(org._id);
+    const superAdminRole = roles.find((role) => role.name === "Super Admin");
+
+    if (superAdminRole && org.ownerId) {
+      await User.findByIdAndUpdate(org.ownerId, {
+        role: superAdminRole._id,
+        organizationId: org._id,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Organization is already active",
+      data: {
+        roles: roles.map((role) => ({
+          id: role._id,
+          name: role.name,
+          permissions: role.permissions,
+          isSystem: role.isSystem,
+        })),
+      },
     });
   }
 
@@ -144,6 +308,7 @@ export const activateOrganization = asyncHandler(async (req, res) => {
   if (!org.activationCode || org.activationCode.toUpperCase() !== code.trim().toUpperCase()) {
     await logAudit({
       userId: req.user._id,
+      organizationId: org._id,
       action: "ACTIVATION_FAILED",
       resource: "Organization",
       metadata: { orgId },
@@ -160,11 +325,22 @@ export const activateOrganization = asyncHandler(async (req, res) => {
 
   await org.save({ validateBeforeSave: false });
 
+  const roles = await createDefaultRolesForOrganization(org._id);
+  const superAdminRole = roles.find((role) => role.name === "Super Admin");
+
+  if (superAdminRole && org.ownerId) {
+    await User.findByIdAndUpdate(org.ownerId, {
+      role: superAdminRole._id,
+      organizationId: org._id,
+    });
+  }
+
   await logAudit({
     userId: req.user._id,
+    organizationId: org._id,
     action: "ORG_ACTIVATED",
     resource: "Organization",
-    metadata: { orgId },
+    metadata: { orgId, defaultRolesCreated: roles.map((role) => role.name) },
     req,
   });
 
@@ -176,9 +352,16 @@ export const activateOrganization = asyncHandler(async (req, res) => {
         id: org._id,
         name: org.name,
         plan: org.plan,
+        subscriptionKey: org.subscriptionKey,
         subscriptionStatus: org.subscriptionStatus,
         expiresAt: org.expiresAt,
       },
+      roles: roles.map((role) => ({
+        id: role._id,
+        name: role.name,
+        permissions: role.permissions,
+        isSystem: role.isSystem,
+      })),
     },
   });
 });

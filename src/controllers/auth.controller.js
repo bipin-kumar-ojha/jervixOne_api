@@ -5,6 +5,17 @@ import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import crypto from "crypto";
 import { logAudit } from "../services/audit.service.js";
+import { PERMISSIONS } from "../constants/permissions.js";
+
+const normalizeRoleName = (roleName = "") => String(roleName).trim().toLowerCase();
+
+const isSuperAdminRole = (role) => {
+  return Boolean(role?.isSystem || normalizeRoleName(role?.name) === "super admin");
+};
+
+const getEffectivePermissions = (role) => {
+  return isSuperAdminRole(role) ? Object.values(PERMISSIONS) : role?.permissions || [];
+};
 
 export const login = asyncHandler(async (req, res) => {
   console.log("Login attempt with data:", req.body);
@@ -127,7 +138,7 @@ await logAudit({
       role: {
         id: user.role._id,
         name: user.role.name,
-        permissions: user.role.permissions,
+        permissions: getEffectivePermissions(user.role),
         isSystem: user.role.isSystem
       },
       organization: user.organizationId ? {

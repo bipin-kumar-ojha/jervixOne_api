@@ -14,7 +14,7 @@ router.post(
   "/login",
   loginRateLimiter,
   [
-    body("email").isEmail().normalizeEmail().withMessage("Valid email required"),
+    body("email").trim().isEmail().withMessage("Valid email required"),
     body("password").notEmpty().withMessage("Password required"),
   ],
   validateRequest,

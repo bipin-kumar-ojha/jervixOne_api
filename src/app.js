@@ -17,6 +17,8 @@ import departmentRoutes from "./routes/department.routes.js";
 import teamRoutes from "./routes/team.routes.js";
 import projectRoutes from "./routes/project.routes.js";
 import projectAssignmentRoutes from "./routes/projectAssignment.routes.js";
+import taskRoutes from "./routes/task.routes.js";
+import websiteLeadRoutes from "./routes/websiteLead.routes.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -38,6 +40,7 @@ app.use((req, res, next) => {
 
 const allowedOrigins = [
   'http://localhost:4200',        // Angular local
+  'http://localhost:5173',        // React Vite local
   'http://localhost:3000',        // React local
   'https://jervix.com',           // Website
   'https://www.jervix.com',    // Website with www
@@ -56,7 +59,7 @@ app.use(
         callback(new Error('Not allowed by CORS'));
       }
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
   })
@@ -94,6 +97,9 @@ app.use("/api/v1/departments", departmentRoutes);
 app.use("/api/v1/teams", teamRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/project-assignments", projectAssignmentRoutes);
+app.use("/api/v1/tasks", taskRoutes);
+app.use("/api/v1/website-leads", websiteLeadRoutes);
+app.use("/api/website-leads", websiteLeadRoutes);
 app.use(errorMiddleware);
 
 export default app;

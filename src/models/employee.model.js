@@ -28,6 +28,7 @@ const employeeSchema = new mongoose.Schema(
     department: { type: mongoose.Schema.Types.ObjectId, ref: "Department", default: null },
     designation: { type: mongoose.Schema.Types.ObjectId, ref: "Designation", default: null },
     manager: { type: mongoose.Schema.Types.ObjectId, ref: "Employee", default: null },
+    role: { type: mongoose.Schema.Types.ObjectId, ref: "Role", required: true },
     dateOfJoining: { type: String, required: true },
     employmentType: { type: String, enum: ["full-time", "contract", "intern"], required: true },
     probationPeriod: { type: Number },
@@ -77,5 +78,7 @@ const employeeSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+employeeSchema.index({ officialEmail: 1, organizationId: 1 });
 
 export const Employee = mongoose.model("Employee", employeeSchema);

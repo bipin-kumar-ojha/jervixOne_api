@@ -5,7 +5,6 @@ const roleSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
       trim: true
     },
 
@@ -18,6 +17,12 @@ const roleSchema = new mongoose.Schema(
     type: [String],
     default: []
   },
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      default: null,
+      index: true
+    },
     isSystem: {
       type: Boolean,
       default: false // for Admin, Super Admin
@@ -27,5 +32,7 @@ const roleSchema = new mongoose.Schema(
     timestamps: true
   }
 );
+
+roleSchema.index({ name: 1, organizationId: 1 }, { unique: true });
 
 export const Role = mongoose.model('Role', roleSchema);

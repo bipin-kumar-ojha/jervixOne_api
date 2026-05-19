@@ -41,6 +41,12 @@ const projectSchema = new mongoose.Schema({
 		required: true,
 		default: [],
 	},
+	organizationId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: "Organization",
+		required: true,
+		index: true,
+	},
 }, {
 	timestamps: true,
 });

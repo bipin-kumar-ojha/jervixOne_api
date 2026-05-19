@@ -12,7 +12,7 @@ const router = express.Router();
 router.post(
 	"/",
 	authMiddleware,
-	requirePermission("projects.create"),
+	requirePermission(PERMISSIONS.PROJECTS_CREATE),
 	[
 		body("projectName").notEmpty().withMessage("Project name is required"),
 		body("startDate").isISO8601().withMessage("Valid start date required"),
@@ -31,7 +31,7 @@ router.post(
 router.get(
 	"/",
 	authMiddleware,
-	requirePermission("projects.view"),
+	requirePermission(PERMISSIONS.PROJECTS_VIEW),
 	projectController.getProjects
 );
 
@@ -39,7 +39,7 @@ router.get(
 router.get(
 	"/:id",
 	authMiddleware,
-	requirePermission("projects.view"),
+	requirePermission(PERMISSIONS.PROJECTS_VIEW),
 	[param("id").isMongoId().withMessage("Invalid project ID")],
 	validateRequest,
 	projectController.getProjectById
@@ -49,7 +49,7 @@ router.get(
 router.put(
 	"/:id",
 	authMiddleware,
-	requirePermission("projects.update"),
+	requirePermission(PERMISSIONS.PROJECTS_UPDATE),
 	[
 		param("id").isMongoId().withMessage("Invalid project ID"),
 		body("projectName").optional().notEmpty(),
@@ -69,7 +69,7 @@ router.put(
 router.delete(
 	"/:id",
 	authMiddleware,
-	requirePermission("projects.delete"),
+	requirePermission(PERMISSIONS.PROJECTS_DELETE),
 	[param("id").isMongoId().withMessage("Invalid project ID")],
 	validateRequest,
 	projectController.deleteProject
