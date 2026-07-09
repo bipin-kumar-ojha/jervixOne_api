@@ -1,13 +1,7 @@
 import mongoose from "mongoose";
 
-const websiteLeadSchema = new mongoose.Schema(
+const candidateLeadSchema = new mongoose.Schema(
   {
-    organizationName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
     name: {
       type: String,
       required: true,
@@ -28,18 +22,36 @@ const websiteLeadSchema = new mongoose.Schema(
       trim: true,
     },
 
-    serviceInterest: {
+    role: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+
+    currentStatus: {
+      type: String,
+      trim: true,
+    },
+
+    portfolio: {
+      type: String,
+      trim: true,
+    },
+
+    skills: {
+      type: String,
+      trim: true,
+    },
+
+    message: {
       type: String,
       trim: true,
     },
 
     projectBrief: {
       type: String,
-      trim: true,
-    },
-
-    employeeSize: {
-      type: String,
+      required: true,
       trim: true,
     },
 
@@ -54,8 +66,8 @@ const websiteLeadSchema = new mongoose.Schema(
   },
 );
 
-websiteLeadSchema.index({ email: 1, organizationName: 1 });
+candidateLeadSchema.index({ email: 1, role: 1 });
 
-const WebsiteLead = mongoose.model("WebsiteLead", websiteLeadSchema);
+const CandidateLead = mongoose.model("CandidateLead", candidateLeadSchema);
 
-export default WebsiteLead;
+export default CandidateLead;

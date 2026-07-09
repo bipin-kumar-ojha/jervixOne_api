@@ -24,10 +24,16 @@ const projectSchema = new mongoose.Schema({
 		required: true,
 		min: 0,
 	},
+	currency: {
+		type: String,
+		enum: ["INR", "USD"],
+		default: "INR",
+		required: true,
+	},
 	status: {
 		type: String,
 		required: true,
-		enum: ['pending', 'active', 'completed', 'on-hold', 'cancelled'],
+		enum: ["planning", "pending", "active", "completed", "on-hold", "cancelled"],
 		default: 'pending',
 	},
 	priority: {
@@ -49,6 +55,12 @@ const projectSchema = new mongoose.Schema({
 	},
 }, {
 	timestamps: true,
+});
+
+projectSchema.post(["init", "save"], function (doc) {
+	if (!doc.currency) {
+		doc.currency = "INR";
+	}
 });
 
 const Project = mongoose.model('Project', projectSchema);

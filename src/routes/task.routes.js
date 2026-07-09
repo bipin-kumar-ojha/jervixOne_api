@@ -52,23 +52,11 @@ const updateTaskValidation = [
 		.optional({ nullable: true, checkFalsy: true })
 		.isFloat({ min: 1, max: 500 })
 		.withMessage("Estimated hours must be between 1 and 500"),
-	body("actualHours")
-		.optional({ nullable: true, checkFalsy: true })
-		.isFloat({ min: 0 })
-		.withMessage("Actual hours must be a non-negative number"),
 	body("dueDate").optional().isISO8601().withMessage("Invalid due date"),
-	body("status")
-		.optional()
-		.isIn(["assigned", "in-progress", "paused", "completed", "blocked"])
-		.withMessage("Invalid task status"),
 ];
 
 const completeTaskValidation = [
 	...taskIdParamValidation,
-	body("actualHours")
-		.optional({ nullable: true, checkFalsy: true })
-		.isFloat({ min: 0 })
-		.withMessage("Actual hours must be a non-negative number"),
 ];
 
 router.post(
@@ -126,7 +114,6 @@ router.delete(
 router.patch(
 	"/:id/start",
 	authMiddleware,
-	requirePermission(PERMISSIONS.TASK_MANAGEMENT_UPDATE),
 	taskIdParamValidation,
 	validateRequest,
 	taskController.startTask,
@@ -135,7 +122,6 @@ router.patch(
 router.patch(
 	"/:id/pause",
 	authMiddleware,
-	requirePermission(PERMISSIONS.TASK_MANAGEMENT_UPDATE),
 	taskIdParamValidation,
 	validateRequest,
 	taskController.pauseTask,
@@ -144,7 +130,6 @@ router.patch(
 router.patch(
 	"/:id/resume",
 	authMiddleware,
-	requirePermission(PERMISSIONS.TASK_MANAGEMENT_UPDATE),
 	taskIdParamValidation,
 	validateRequest,
 	taskController.resumeTask,
@@ -153,7 +138,6 @@ router.patch(
 router.patch(
 	"/:id/complete",
 	authMiddleware,
-	requirePermission(PERMISSIONS.TASK_MANAGEMENT_UPDATE),
 	completeTaskValidation,
 	validateRequest,
 	taskController.completeTask,
