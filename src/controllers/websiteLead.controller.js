@@ -13,6 +13,7 @@ const CAREER_LEAD_TYPE = "career";
 const CLIENT_LEAD_TYPE = "client";
 const PRODUCT_LEAD_TYPE = "product";
 const CAREER_ROLES = [
+  "Internship Program",
   "Business Development Executive Intern",
   "Full Stack Developer Intern",
   "Blockchain Developer Intern",
