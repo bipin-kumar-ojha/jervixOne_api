@@ -165,14 +165,6 @@ export const registerOrganization = asyncHandler(async (req, res) => {
     throw new ApiError(409, "An account with this email already exists");
   }
 
-  const adminRole = await Role.findOne({
-    name: { $regex: /^admin$/i },
-    organizationId: null,
-  });
-  if (!adminRole) {
-    throw new ApiError(500, "Admin role not configured. Contact support.");
-  }
-
   // Create org first
   const org = await Organization.create({
     name: orgName.trim(),
@@ -183,9 +175,19 @@ export const registerOrganization = asyncHandler(async (req, res) => {
     plan: "free",
   });
 
-  // Create admin user — if this fails, manually clean up org
+  // Provision organization-scoped roles before creating the owner account.
+  // Activation later promotes the owner from Admin to Super Admin.
   let adminUser;
   try {
+    const roles = await createDefaultRolesForOrganization(org._id);
+    const adminRole = roles.find(
+      (role) => role.name.trim().toLowerCase() === "admin"
+    );
+
+    if (!adminRole) {
+      throw new ApiError(500, "Failed to configure the organization Admin role");
+    }
+
     adminUser = await User.create({
       name: adminName.trim(),
       email: adminEmail.toLowerCase().trim(),
@@ -195,7 +197,8 @@ export const registerOrganization = asyncHandler(async (req, res) => {
       isActive: true,
     });
   } catch (userError) {
-    // Clean up the org if user creation fails
+    // Clean up all partially provisioned organization data on failure.
+    await Role.deleteMany({ organizationId: org._id });
     await Organization.findByIdAndDelete(org._id);
     throw userError;
   }
