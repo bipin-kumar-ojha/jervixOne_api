@@ -7,6 +7,10 @@ import { ApiError } from "../utils/ApiError.js";
 import { uploadToCloudinary } from "../utils/cloudinary.util.js";
 import cloudinary from "../config/cloudinary.config.js";
 import { sendEmail } from "../services/mail.service.js";
+import {
+  appendEmployeeCredentials,
+  isGoogleSheetsConfigured,
+} from "../services/googleSheets.service.js";
 import crypto from "crypto";
 import mongoose from "mongoose";
 
@@ -336,6 +340,30 @@ export const createEmployee = asyncHandler(async (req, res) => {
     to: normalizedOfficialEmail,
   };
 
+  const sheetStatus = {
+    saved: false,
+    configured: isGoogleSheetsConfigured(),
+  };
+
+  if (sheetStatus.configured) {
+    try {
+      await appendEmployeeCredentials({
+        organizationName: organization.name,
+        employeeId,
+        employeeName: name.trim(),
+        username: normalizedOfficialEmail,
+        temporaryPassword,
+        roleName: roleDoc.name,
+      });
+      sheetStatus.saved = true;
+    } catch (err) {
+      console.error("Employee credential Google Sheets save failed:", err.message);
+      sheetStatus.error = err.message;
+    }
+  } else {
+    sheetStatus.error = "Google Sheets credential storage is not configured";
+  }
+
   try {
     await sendEmail({
       to: normalizedOfficialEmail,
@@ -358,9 +386,13 @@ export const createEmployee = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    message: emailStatus.sent
-      ? "Employee and user created. Welcome email sent."
-      : "Employee and user created. Welcome email failed.",
+    message: emailStatus.sent && sheetStatus.saved
+      ? "Employee and user created. Welcome email sent and credentials saved to Google Sheets."
+      : emailStatus.sent
+        ? "Employee and user created. Welcome email sent; Google Sheets credential save failed."
+        : sheetStatus.saved
+          ? "Employee and user created. Welcome email failed; credentials saved to Google Sheets."
+          : "Employee and user created. Welcome email and Google Sheets credential save failed.",
     data: {
       employee: populatedEmployee,
       account: {
@@ -370,6 +402,7 @@ export const createEmployee = asyncHandler(async (req, res) => {
         role: roleDoc.name,
         credentialsSentTo: emailStatus.sent ? normalizedOfficialEmail : null,
         emailStatus,
+        sheetStatus,
       },
     },
   });
