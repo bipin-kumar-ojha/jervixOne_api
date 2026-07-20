@@ -31,7 +31,7 @@ export const login = asyncHandler(async (req, res) => {
     isDeleted: false,
   })
     .select(
-      "+password +sessions.token name email role organizationId tokenVersion " +
+      "+password name email role organizationId tokenVersion " +
       "loginAttempts lockUntil"
     )
     .populate("role", "name permissions isSystem")
@@ -111,16 +111,23 @@ const hashedRefreshToken = crypto
   .update(refreshToken)
   .digest("hex");
 
-user.loginAttempts = 0;
-user.lockUntil = null;
-user.lastLoginAt = new Date();
-user.sessions.push({
-  token: hashedRefreshToken,
-  ip: req.ip,
-  userAgent: req.headers["user-agent"]
-});
-
-await user.save();
+await User.updateOne(
+  { _id: user._id },
+  {
+    $set: {
+      loginAttempts: 0,
+      lockUntil: null,
+      lastLoginAt: new Date(),
+    },
+    $push: {
+      sessions: {
+        token: hashedRefreshToken,
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      },
+    },
+  },
+);
 
 await logAudit({
   userId: user._id,
