@@ -32,7 +32,7 @@ export const login = asyncHandler(async (req, res) => {
   })
     .select(
       "+password +sessions.token name email role organizationId tokenVersion " +
-      "sessions loginAttempts lockUntil"
+      "loginAttempts lockUntil"
     )
     .populate("role", "name permissions isSystem")
     .populate("organizationId", "name orgCode plan subscriptionStatus");
@@ -199,7 +199,7 @@ export const refresh = asyncHandler(async (req, res) => {
     _id: decoded.sub,
     isActive: true,
     isDeleted: false,
-  }).select("+sessions.token tokenVersion sessions");
+  }).select("+sessions.token tokenVersion");
 
   if (!user) {
     await logAudit({
