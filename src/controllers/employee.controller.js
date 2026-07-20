@@ -109,7 +109,6 @@ const employeeWelcomeTemplate = ({ name, organizationName, username, password, l
 
 // CREATE
 export const createEmployee = asyncHandler(async (req, res) => {
-  console.log("Creating employee with data:", req.body);
   // Destructure all fields from req.body
   const {
     name,
@@ -160,7 +159,6 @@ export const createEmployee = asyncHandler(async (req, res) => {
     role,
   } = req.body;
 
-  console.log("Received employee data:", req.body);
 
   // Basic required fields validation (add more as needed)
   if (!name || !personalEmail || !officialEmail || !dob || !gender || !permanentAddress || !pan || !aadhaar || !dateOfJoining || !employmentType) {
@@ -182,11 +180,6 @@ export const createEmployee = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid role");
   }
 
-  const organization = await Organization.findById(req.user.organizationId).select("name");
-  if (!organization) {
-    throw new ApiError(404, "Organization not found");
-  }
-
   if (departmentId && !mongoose.Types.ObjectId.isValid(departmentId)) {
     throw new ApiError(400, "Invalid department");
   }
@@ -195,43 +188,44 @@ export const createEmployee = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid designation");
   }
 
-  const existingUser = await User.findOne({ email: normalizedOfficialEmail });
+  if (managerId && !mongoose.Types.ObjectId.isValid(managerId)) {
+    throw new ApiError(400, "Invalid manager");
+  }
+
+  const [organization, existingUser, existingEmployee, roleDoc, managerExists] = await Promise.all([
+    Organization.findById(req.user.organizationId).select("name").lean(),
+    User.exists({ email: normalizedOfficialEmail }),
+    Employee.exists({
+      officialEmail: normalizedOfficialEmail,
+      organizationId: req.user.organizationId,
+    }),
+    Role.findOne({
+      _id: requestedRole,
+      organizationId: req.user.organizationId,
+    }).select("_id name").lean(),
+    managerId
+      ? Employee.exists({ _id: managerId, organizationId: req.user.organizationId })
+      : Promise.resolve(null),
+  ]);
+
+  if (!organization) {
+    throw new ApiError(404, "Organization not found");
+  }
+
   if (existingUser) {
     throw new ApiError(409, "A user with this official email already exists");
   }
-
-  const existingEmployee = await Employee.findOne({
-    officialEmail: normalizedOfficialEmail,
-    organizationId: req.user.organizationId,
-  });
 
   if (existingEmployee) {
     throw new ApiError(409, "An employee with this official email already exists");
   }
 
-  const roleDoc = await Role.findOne({
-    _id: requestedRole,
-    organizationId: req.user.organizationId,
-  });
-
   if (!roleDoc) {
     throw new ApiError(404, "Role not found");
   }
 
-  // Validate manager if provided
-  let managerExists = null;
-  if (managerId) {
-    if (!mongoose.Types.ObjectId.isValid(managerId)) {
-      throw new ApiError(400, "Invalid manager");
-    }
-
-    managerExists = await Employee.findOne({
-      _id: managerId,
-      organizationId: req.user.organizationId,
-    });
-    if (!managerExists) {
-      throw new ApiError(400, "Manager not found");
-    }
+  if (managerId && !managerExists) {
+    throw new ApiError(400, "Manager not found");
   }
 
   let profileImage = {};
@@ -345,27 +339,18 @@ export const createEmployee = asyncHandler(async (req, res) => {
     configured: isGoogleSheetsConfigured(),
   };
 
-  if (sheetStatus.configured) {
-    try {
-      await appendEmployeeCredentials({
+  const sheetPromise = sheetStatus.configured
+    ? appendEmployeeCredentials({
         organizationName: organization.name,
         employeeId,
         employeeName: name.trim(),
         username: normalizedOfficialEmail,
         temporaryPassword,
         roleName: roleDoc.name,
-      });
-      sheetStatus.saved = true;
-    } catch (err) {
-      console.error("Employee credential Google Sheets save failed:", err.message);
-      sheetStatus.error = err.message;
-    }
-  } else {
-    sheetStatus.error = "Google Sheets credential storage is not configured";
-  }
+      })
+    : Promise.resolve();
 
-  try {
-    await sendEmail({
+  const emailPromise = sendEmail({
       to: normalizedOfficialEmail,
       fromName: organization.name,
       subject: `${organization.name} - Your employee account details`,
@@ -378,8 +363,24 @@ export const createEmployee = asyncHandler(async (req, res) => {
       }),
     });
 
+  const [sheetResult, emailResult] = await Promise.allSettled([
+    sheetPromise,
+    emailPromise,
+  ]);
+
+  if (!sheetStatus.configured) {
+    sheetStatus.error = "Google Sheets credential storage is not configured";
+  } else if (sheetResult.status === "fulfilled") {
+    sheetStatus.saved = true;
+  } else {
+    console.error("Employee credential Google Sheets save failed:", sheetResult.reason?.message);
+    sheetStatus.error = sheetResult.reason?.message;
+  }
+
+  if (emailResult.status === "fulfilled") {
     emailStatus.sent = true;
-  } catch (err) {
+  } else {
+    const err = emailResult.reason;
     console.error("Employee welcome email failed:", err.response?.body || err.message);
     emailStatus.error = err.response?.body?.errors?.[0]?.message || err.message;
   }
@@ -570,14 +571,14 @@ export const updateEmployee = asyncHandler(async (req, res) => {
 
 // GET ALL
 export const getEmployees = asyncHandler(async (req, res) => {
-  console.log("Fetching employees for organization:", req.user.organizationId);
   const employeeRows = await Employee.find({
       organizationId: req.user.organizationId,
     })
     .populate("department", "name")
     .populate("designation", "name")
     .populate("role", "_id name")
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
 
   const employeesByEmail = new Map();
 
@@ -606,7 +607,8 @@ export const getEmployeeById = asyncHandler(async (req, res) => {
     .populate("department", "name")
     .populate("designation", "name")
     .populate("role", "_id name")
-    .populate("manager", "name");
+    .populate("manager", "name")
+    .lean();
 
   if (!employee) {
     throw new ApiError(404, "Employee not found");

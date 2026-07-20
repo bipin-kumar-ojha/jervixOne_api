@@ -6,13 +6,12 @@ import { ApiError } from "../utils/ApiError.js";
 // CREATE
 export const createTeam = asyncHandler(async (req, res) => {
 	const { teamName, department, teamLead, members } = req.body;
-	console.log("Creating team with data:", req.body);
 	if (!teamName || !department || !teamLead) {
 		throw new ApiError(400, "Missing required fields");
 	}
 
 	// Validate teamLead exists
-	const leadExists = await Employee.findOne({
+	const leadExists = await Employee.exists({
 		_id: teamLead,
 		organizationId: req.user.organizationId,
 	});
@@ -60,7 +59,7 @@ export const updateTeam = asyncHandler(async (req, res) => {
 	if (teamName) team.teamName = teamName;
 	if (department) team.department = department;
 	if (teamLead) {
-		const leadExists = await Employee.findOne({
+		const leadExists = await Employee.exists({
 			_id: teamLead,
 			organizationId: req.user.organizationId,
 		});
@@ -95,7 +94,8 @@ export const getTeams = asyncHandler(async (req, res) => {
 		.populate("department", "name")
 		.populate("teamLead", "name")
 		.populate("members", "name")
-		.sort({ createdAt: -1 });
+		.sort({ createdAt: -1 })
+		.lean();
 
 	res.status(200).json({
 		success: true,
@@ -112,7 +112,8 @@ export const getTeamById = asyncHandler(async (req, res) => {
 	})
 		.populate("department", "name")
 		.populate("teamLead", "name")
-		.populate("members", "name");
+		.populate("members", "name")
+		.lean();
 
 	if (!team) {
 		throw new ApiError(404, "Team not found");

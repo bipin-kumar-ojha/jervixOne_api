@@ -89,8 +89,12 @@ const taskSchema = new mongoose.Schema({
     index: true,
   },
 }, {
-  timestamps: true,
+	timestamps: true,
 });
+
+taskSchema.index({ organizationId: 1, createdAt: -1 });
+taskSchema.index({ organizationId: 1, projectId: 1, createdAt: -1 });
+taskSchema.index({ organizationId: 1, assignedTo: 1, createdAt: -1 });
 
 const Task = mongoose.model("Task", taskSchema);
 

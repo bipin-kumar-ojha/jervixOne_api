@@ -54,7 +54,13 @@ export const createUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "No organization linked to your account");
   }
 
-  const roleExists = await Role.findOne({ _id: role, organizationId });
+  const [roleExists, existingUser] = await Promise.all([
+    Role.findOne({ _id: role, organizationId })
+      .select("_id name permissions isSystem")
+      .lean(),
+    User.exists({ email, isDeleted: false }),
+  ]);
+
   if (!roleExists) {
     throw new ApiError(400, 'Invalid role selected');
   }
@@ -62,11 +68,6 @@ export const createUser = asyncHandler(async (req, res) => {
   if (isSuperAdminRole(roleExists) && !isSuperAdminUser(req.user)) {
     throw new ApiError(403, "Only Super Admin can create Super Admin users");
   }
-
-  const existingUser = await User.findOne({
-    email,
-    isDeleted: false
-  });
 
   if (existingUser) {
     throw new ApiError(409, 'User already exists');
@@ -158,7 +159,9 @@ export const updateUser = asyncHandler(async (req, res) => {
   const existingUser = await User.findOne({
     _id: id,
     organizationId: req.user.organizationId,
-  }).populate("role");
+  })
+    .select("name email role isActive isDeleted tokenVersion")
+    .populate("role", "name permissions isSystem");
 
   if (!existingUser || existingUser.isDeleted) {
     throw new ApiError(404, "User not found");
@@ -194,7 +197,7 @@ export const updateUser = asyncHandler(async (req, res) => {
      🚫 Email Conflict Check
   =============================== */
   if (email && email !== existingUser.email) {
-    const emailExists = await User.findOne({
+    const emailExists = await User.exists({
       email,
       _id: { $ne: id },
       isDeleted: false,
@@ -212,7 +215,7 @@ export const updateUser = asyncHandler(async (req, res) => {
     const newRole = await Role.findOne({
       _id: role,
       organizationId: req.user.organizationId,
-    });
+    }).select("name permissions isSystem").lean();
 
     if (!newRole) {
       throw new ApiError(400, "Invalid role selected");

@@ -55,6 +55,8 @@ const websiteLeadSchema = new mongoose.Schema(
 );
 
 websiteLeadSchema.index({ email: 1, organizationName: 1 });
+websiteLeadSchema.index({ createdAt: -1 });
+websiteLeadSchema.index({ status: 1, createdAt: -1 });
 
 const WebsiteLead = mongoose.model("WebsiteLead", websiteLeadSchema);
 

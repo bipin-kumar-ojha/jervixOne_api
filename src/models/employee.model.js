@@ -80,5 +80,7 @@ const employeeSchema = new mongoose.Schema(
 );
 
 employeeSchema.index({ officialEmail: 1, organizationId: 1 });
+employeeSchema.index({ organizationId: 1, createdAt: -1 });
+employeeSchema.index({ organizationId: 1, department: 1 });
 
 export const Employee = mongoose.model("Employee", employeeSchema);

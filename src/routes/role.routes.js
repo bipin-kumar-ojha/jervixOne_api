@@ -15,9 +15,7 @@ const router = express.Router();
 router.post("/", authMiddleware, requirePermission(PERMISSIONS.ROLES_CREATE), createRole);
 
 router.get("/", authMiddleware, requirePermission(PERMISSIONS.ROLES_VIEW), getRoles);
-console.log("Defined GET / route for fetching all roles");
 router.get("/:id", authMiddleware, requirePermission(PERMISSIONS.ROLES_VIEW), getRoleById);
-console.log("Defined GET /:id route for fetching role by ID");
 
 
 router.put("/:id", authMiddleware, requirePermission(PERMISSIONS.ROLES_UPDATE), updateRole);

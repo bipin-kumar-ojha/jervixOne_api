@@ -300,7 +300,7 @@ const getEmployeesForUser = async (user, organizationId) => {
 			{ officialEmail: user.email },
 			{ personalEmail: user.email },
 		],
-	}).select("_id name officialEmail personalEmail");
+	}).select("_id name officialEmail personalEmail").lean();
 
 	if (!employees.length) {
 		throw new ApiError(403, "Employee profile not found for this user");
@@ -373,8 +373,8 @@ const validateProjectAndEmployee = async ({ projectId, assignedTo, organizationI
 	ensureObjectId(assignedTo, "employee ID");
 
 	const [project, employee] = await Promise.all([
-		Project.findOne({ _id: projectId, organizationId }).select("_id"),
-		Employee.findOne({ _id: assignedTo, organizationId }).select("_id"),
+		Project.exists({ _id: projectId, organizationId }),
+		Employee.exists({ _id: assignedTo, organizationId }),
 	]);
 
 	if (!project) {
@@ -468,7 +468,8 @@ const sendPaginatedTasks = async (res, filter, query) => {
 			.populate(TASK_POPULATE)
 			.sort(sort)
 			.skip(skip)
-			.limit(limit),
+			.limit(limit)
+			.lean(),
 		Task.countDocuments(filter),
 	]);
 	const serializedTasks = await serializeTasks(tasks);

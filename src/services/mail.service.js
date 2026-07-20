@@ -3,9 +3,10 @@ import sgMail from "@sendgrid/mail";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const sendgridApiKey = process.env.SENDGRID_API_KEY;
+let smtpTransporter;
 
 if (sendgridApiKey) {
   sgMail.setApiKey(sendgridApiKey);
@@ -33,6 +34,8 @@ const getSender = (fromName) => {
 };
 
 const getSmtpTransporter = () => {
+  if (smtpTransporter) return smtpTransporter;
+
   const host = process.env.SMTP_HOST || process.env.MAIL_HOST;
   const port = Number.parseInt(process.env.SMTP_PORT || process.env.MAIL_PORT, 10);
   const user = process.env.SMTP_USER || process.env.MAIL_USER;
@@ -45,14 +48,21 @@ const getSmtpTransporter = () => {
     }
     : undefined;
 
-  return nodemailer.createTransport({
+  smtpTransporter = nodemailer.createTransport({
     host,
     port,
     secure: secureValue
       ? secureValue === "true"
       : port === 465,
     auth,
+    pool: true,
+    maxConnections: 3,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
   });
+
+  return smtpTransporter;
 };
 
 const getMailMessage = ({ to, subject, html, fromName, replyTo }) => ({
@@ -70,7 +80,6 @@ const sendWithSendGrid = async (message) => {
 
   const response = await sgMail.send(message);
 
-  console.log("📧 Email sent via SendGrid:", response[0].statusCode);
   return response;
 };
 
@@ -81,7 +90,6 @@ const sendWithSmtp = async (message) => {
 
   const response = await getSmtpTransporter().sendMail(message);
 
-  console.log("📧 Email sent via SMTP:", response.messageId);
   return response;
 };
 

@@ -6,10 +6,10 @@ import roleRoutes from './routes/role.routes.js';
 import permissionRoutes from './routes/permission.routes.js';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import { errorMiddleware } from './middlewares/error.middleware.js';
 import { globalRateLimiter } from './middlewares/globalRateLimit.middleware.js';
 import { requestIdMiddleware } from './middlewares/requestId.middleware.js';
-import { securityLogger } from "./middlewares/securityLogger.middleware.js";
 import orgRoutes from "./routes/org.routes.js";
 import employeeRoutes from "./routes/employee.routes.js";
 import designationRoutes from "./routes/designation.routes.js";
@@ -19,8 +19,6 @@ import projectRoutes from "./routes/project.routes.js";
 import projectAssignmentRoutes from "./routes/projectAssignment.routes.js";
 import taskRoutes from "./routes/task.routes.js";
 import websiteLeadRoutes from "./routes/websiteLead.routes.js";
-import dotenv from "dotenv";
-dotenv.config();
 
 const app = express();
 app.disable('x-powered-by');
@@ -64,6 +62,7 @@ app.use(
     credentials: true
   })
 );
+app.use(compression());
 app.get('/', (req, res) => {
   res.send('🚀 Jervix One API is running');
 });
@@ -81,14 +80,12 @@ app.use(globalRateLimiter);
 
 app.use(requestIdMiddleware);
 app.use(express.json({ limit: '10kb' }));
-app.use(securityLogger);
 
 
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/roles', roleRoutes);
-console.log("Registered role routes at /api/v1/roles");
 app.use('/api/v1/permissions', permissionRoutes);
 app.use("/api/v1/org", orgRoutes);
 app.use("/api/v1/employees",employeeRoutes);

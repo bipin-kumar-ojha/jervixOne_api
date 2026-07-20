@@ -135,4 +135,7 @@ userSchema.set("toJSON", {
   },
 });
 
+userSchema.index({ organizationId: 1, isDeleted: 1, createdAt: -1 });
+userSchema.index({ organizationId: 1, role: 1, isDeleted: 1 });
+
 export const User = mongoose.model("User", userSchema);

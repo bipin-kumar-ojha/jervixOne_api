@@ -18,7 +18,6 @@ const getEffectivePermissions = (role) => {
 };
 
 export const login = asyncHandler(async (req, res) => {
-  console.log("Login attempt with data:", req.body);
   const { email, password } = req.body;
   const normalizedEmail = email?.toLowerCase().trim();
 
@@ -31,9 +30,12 @@ export const login = asyncHandler(async (req, res) => {
     isActive: true,
     isDeleted: false,
   })
-    .populate("role")
-    .populate("organizationId", "name orgCode plan subscriptionStatus")
-    .select("+password");
+    .select(
+      "+password +sessions.token name email role organizationId tokenVersion " +
+      "sessions loginAttempts lockUntil"
+    )
+    .populate("role", "name permissions isSystem")
+    .populate("organizationId", "name orgCode plan subscriptionStatus");
 
   if (!user) {
      await logAudit({
@@ -75,8 +77,6 @@ export const login = asyncHandler(async (req, res) => {
     
   }
 
-  // ✅ Successful login → reset attempts
-  await user.resetLoginAttempts();
   const accessToken = jwt.sign(
   {
     sub: user._id.toString(),
@@ -111,6 +111,8 @@ const hashedRefreshToken = crypto
   .update(refreshToken)
   .digest("hex");
 
+user.loginAttempts = 0;
+user.lockUntil = null;
 user.lastLoginAt = new Date();
 user.sessions.push({
   token: hashedRefreshToken,
@@ -197,7 +199,7 @@ export const refresh = asyncHandler(async (req, res) => {
     _id: decoded.sub,
     isActive: true,
     isDeleted: false,
-  }).select("+refreshToken");
+  }).select("+sessions.token tokenVersion sessions");
 
   if (!user) {
     await logAudit({

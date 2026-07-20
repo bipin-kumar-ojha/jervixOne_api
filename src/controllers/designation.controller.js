@@ -15,7 +15,7 @@ export const createDesignation = asyncHandler(async (req, res) => {
   }
 
 
-  const existing = await Designation.findOne({
+  const existing = await Designation.exists({
     name,
     organizationId: req.user.organizationId,
   });
@@ -37,7 +37,9 @@ export const createDesignation = asyncHandler(async (req, res) => {
 export const getDesignations = asyncHandler(async (req, res) => {
   const list = await Designation.find({
     organizationId: req.user.organizationId,
-  }).sort({ createdAt: -1 });
+  })
+    .sort({ createdAt: -1 })
+    .lean();
 
   res.json({ success: true, data: list });
 });

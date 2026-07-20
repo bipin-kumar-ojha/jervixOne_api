@@ -27,5 +27,6 @@ const designationSchema = new mongoose.Schema(
 
 // Prevent duplicate designation in same org
 designationSchema.index({ name: 1, organizationId: 1 }, { unique: true });
+designationSchema.index({ organizationId: 1, createdAt: -1 });
 
 export const Designation = mongoose.model("Designation", designationSchema);

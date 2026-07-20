@@ -133,7 +133,7 @@ export const getProjectTaskSummary = asyncHandler(async (req, res) => {
 	const project = await Project.findOne({
 		_id: projectId,
 		organizationId,
-	}).select("_id projectName");
+	}).select("_id projectName").lean();
 
 	if (!project) {
 		throw new ApiError(404, "Project not found");
@@ -146,7 +146,8 @@ export const getProjectTaskSummary = asyncHandler(async (req, res) => {
 	);
 	const tasks = await Task.find(taskFilter)
 		.populate(TASK_SUMMARY_POPULATE)
-		.sort({ createdAt: -1 });
+		.sort({ createdAt: -1 })
+		.lean();
 	const timingSummaries = await getTimingSummaries(tasks);
 	const statusCounts = buildStatusCounts();
 	const employeeSummaries = new Map();

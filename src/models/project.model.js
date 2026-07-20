@@ -63,5 +63,7 @@ projectSchema.post(["init", "save"], function (doc) {
 	}
 });
 
+projectSchema.index({ organizationId: 1, createdAt: -1 });
+
 const Project = mongoose.model('Project', projectSchema);
 export default Project;

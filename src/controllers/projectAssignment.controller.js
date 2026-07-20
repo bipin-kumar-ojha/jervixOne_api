@@ -15,7 +15,7 @@ export const assignProject = asyncHandler(async (req, res) => {
 		throw new ApiError(400, "No organization linked to your account");
 	}
 
-	const project = await Project.findOne({ _id: projectId, organizationId });
+	const project = await Project.exists({ _id: projectId, organizationId });
 	if (!project) {
 		throw new ApiError(404, "Project not found");
 	}
@@ -25,13 +25,15 @@ export const assignProject = asyncHandler(async (req, res) => {
 		const orgEmployees = await Employee.find({
 			_id: { $in: employeeIds || [] },
 			organizationId,
-		}).select("_id");
+		}).select("_id").lean();
 		employees = orgEmployees.map(emp => emp._id);
 	}
 
 	// Case 2: Department
 	if (assignType === "department") {
-		const deptEmployees = await Employee.find({ department: departmentId, organizationId });
+		const deptEmployees = await Employee.find({ department: departmentId, organizationId })
+			.select("_id")
+			.lean();
 		employees = deptEmployees.map(emp => emp._id);
 	}
 

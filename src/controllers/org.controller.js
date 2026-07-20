@@ -105,32 +105,41 @@ const defaultRoles = [
   },
 ];
 
-const ensureRoleIndexes = async () => {
-  const indexes = await Role.collection.indexes();
-  const staleNameIndex = indexes.find((index) => {
-    return index.name === "name_1"
-      && index.unique
-      && Object.keys(index.key).length === 1
-      && index.key.name === 1;
+let roleIndexPromise;
+
+const ensureRoleIndexes = () => {
+  if (roleIndexPromise) return roleIndexPromise;
+
+  roleIndexPromise = (async () => {
+    const indexes = await Role.collection.indexes();
+    const staleNameIndex = indexes.find((index) => {
+      return index.name === "name_1"
+        && index.unique
+        && Object.keys(index.key).length === 1
+        && index.key.name === 1;
+    });
+
+    if (staleNameIndex) {
+      await Role.collection.dropIndex(staleNameIndex.name);
+    }
+
+    await Role.collection.createIndex(
+      { name: 1, organizationId: 1 },
+      { unique: true }
+    );
+  })().catch((error) => {
+    roleIndexPromise = null;
+    throw error;
   });
 
-  if (staleNameIndex) {
-    await Role.collection.dropIndex(staleNameIndex.name);
-  }
-
-  await Role.collection.createIndex(
-    { name: 1, organizationId: 1 },
-    { unique: true }
-  );
+  return roleIndexPromise;
 };
 
 const createDefaultRolesForOrganization = async (organizationId) => {
   await ensureRoleIndexes();
 
-  const roles = [];
-
-  for (const role of defaultRoles) {
-    const savedRole = await Role.findOneAndUpdate(
+  return Promise.all(defaultRoles.map((role) => {
+    return Role.findOneAndUpdate(
       { name: role.name, organizationId },
       {
         $setOnInsert: {
@@ -144,11 +153,7 @@ const createDefaultRolesForOrganization = async (organizationId) => {
         setDefaultsOnInsert: true,
       }
     );
-
-    roles.push(savedRole);
-  }
-
-  return roles;
+  }));
 };
 
 // ─────────────────────────────────────────
@@ -198,8 +203,10 @@ export const registerOrganization = asyncHandler(async (req, res) => {
     });
   } catch (userError) {
     // Clean up all partially provisioned organization data on failure.
-    await Role.deleteMany({ organizationId: org._id });
-    await Organization.findByIdAndDelete(org._id);
+    await Promise.all([
+      Role.deleteMany({ organizationId: org._id }),
+      Organization.findByIdAndDelete(org._id),
+    ]);
     throw userError;
   }
 
@@ -375,7 +382,8 @@ export const activateOrganization = asyncHandler(async (req, res) => {
 // ─────────────────────────────────────────
 export const getMyOrganization = asyncHandler(async (req, res) => {
   const org = await Organization.findById(req.user.organizationId)
-    .populate("ownerId", "name email");
+    .populate("ownerId", "name email")
+    .lean();
 
   if (!org) {
     throw new ApiError(404, "Organization not found");

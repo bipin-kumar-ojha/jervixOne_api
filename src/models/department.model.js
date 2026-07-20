@@ -33,5 +33,6 @@ const departmentSchema = new mongoose.Schema(
 
 // Prevent duplicate department in same org
 departmentSchema.index({ name: 1, organizationId: 1 }, { unique: true });
+departmentSchema.index({ organizationId: 1, createdAt: -1 });
 
 export const Department = mongoose.model("Department", departmentSchema);

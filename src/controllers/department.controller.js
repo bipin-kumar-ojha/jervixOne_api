@@ -14,7 +14,7 @@ export const createDepartment = asyncHandler(async (req, res) => {
         throw new ApiError(400, "All fields are required");
     }
 
-    const existing = await Department.findOne({name, organizationId: req.user.organizationId});
+    const existing = await Department.exists({name, organizationId: req.user.organizationId});
 
     if(existing){
         throw new ApiError(409, "Department already exists");
@@ -30,7 +30,9 @@ export const createDepartment = asyncHandler(async (req, res) => {
 });
 
 export const getDepartments = asyncHandler(async (req, res) => {
-    const list = await Department.find({organizationId: req.user.organizationId}).sort({createdAt: -1});
+    const list = await Department.find({organizationId: req.user.organizationId})
+      .sort({createdAt: -1})
+      .lean();
 
     res.json({success: true, data: list});  
 });

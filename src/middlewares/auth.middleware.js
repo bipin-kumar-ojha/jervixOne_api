@@ -4,7 +4,6 @@ import { env } from "../config/env.js";
 import { ApiError } from "../utils/ApiError.js";
 
 export const authMiddleware = async (req, res, next) => {
-  console.log("Authenticating request...");
   try {
     const authHeader = req.headers.authorization;
 
@@ -28,7 +27,10 @@ export const authMiddleware = async (req, res, next) => {
       _id: decoded.sub,
       isDeleted: false,
       isActive: true,
-    }).populate("role", "name permissions isSystem organizationId");
+    })
+      .select("email organizationId tokenVersion role")
+      .populate("role", "name permissions isSystem organizationId")
+      .lean();
 
     if (!user) {
       throw new ApiError(401, "Unauthorized");

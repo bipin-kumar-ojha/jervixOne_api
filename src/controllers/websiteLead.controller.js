@@ -532,7 +532,8 @@ export const getWebsiteLeads = asyncHandler(async (req, res) => {
     WebsiteLead.find(filters)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     WebsiteLead.countDocuments(filters),
   ]);
 
@@ -551,7 +552,7 @@ export const getWebsiteLeads = asyncHandler(async (req, res) => {
 export const getWebsiteLeadById = asyncHandler(async (req, res) => {
   ensureObjectId(req.params.id);
 
-  const websiteLead = await WebsiteLead.findById(req.params.id);
+  const websiteLead = await WebsiteLead.findById(req.params.id).lean();
 
   if (!websiteLead) {
     throw new ApiError(404, "Website lead not found");

@@ -18,7 +18,7 @@ export const createRole = asyncHandler(async (req, res) => {
     throw new ApiError(400, "No organization linked to your account");
   }
 
-  const existingRole = await Role.findOne({ name, organizationId });
+  const existingRole = await Role.exists({ name, organizationId });
   if (existingRole) {
     throw new ApiError(409, "Role already exists");
   }
