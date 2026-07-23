@@ -18,6 +18,9 @@ import "../models/task.model.js";
 import "../models/team.model.js";
 import "../models/user.model.js";
 import "../models/websiteLead.model.js";
+import "../models/attendance.model.js";
+import "../models/attendanceCorrection.model.js";
+import "../models/attendanceSettings.model.js";
 
 const createIndexes = async () => {
   await connectDatabase();

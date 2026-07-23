@@ -19,6 +19,7 @@ import projectRoutes from "./routes/project.routes.js";
 import projectAssignmentRoutes from "./routes/projectAssignment.routes.js";
 import taskRoutes from "./routes/task.routes.js";
 import websiteLeadRoutes from "./routes/websiteLead.routes.js";
+import attendanceRoutes from "./routes/attendance.routes.js";
 
 const app = express();
 app.disable('x-powered-by');
@@ -95,6 +96,7 @@ app.use("/api/v1/teams", teamRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/project-assignments", projectAssignmentRoutes);
 app.use("/api/v1/tasks", taskRoutes);
+app.use("/api/v1/attendance", attendanceRoutes);
 app.use("/api/v1/website-leads", websiteLeadRoutes);
 app.use("/api/website-leads", websiteLeadRoutes);
 app.use(errorMiddleware);

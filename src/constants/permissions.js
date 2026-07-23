@@ -84,4 +84,14 @@ export const PERMISSIONS = {
   TEAMS_CREATE: 'teams.create',
   TEAMS_UPDATE: 'teams.update',
   TEAMS_DELETE: 'teams.delete',
+
+  ATTENDANCE_VIEW: 'attendance.view',
+  ATTENDANCE_VIEW_OWN: 'attendance.view_own',
+  ATTENDANCE_CHECKIN: 'attendance.checkin',
+  ATTENDANCE_CHECKOUT: 'attendance.checkout',
+  ATTENDANCE_BREAK: 'attendance.break',
+  ATTENDANCE_EDIT: 'attendance.edit',
+  ATTENDANCE_EXPORT: 'attendance.export',
+  ATTENDANCE_REQUEST_CORRECTION: 'attendance.request_correction',
+  ATTENDANCE_APPROVE_CORRECTION: 'attendance.approve_correction',
 };

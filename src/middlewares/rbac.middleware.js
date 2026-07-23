@@ -43,3 +43,12 @@ export const requirePermission = (permission) => {
     next();
   };
 };
+
+export const requireAnyPermission = (...requiredPermissions) => (req, res, next) => {
+  if (isSuperAdminRole(req.user?.role)) return next();
+  const permissions = req.user?.role?.permissions || [];
+  if (!requiredPermissions.some((permission) => permissions.includes(permission))) {
+    throw new ApiError(403, "Forbidden: insufficient permissions");
+  }
+  next();
+};
